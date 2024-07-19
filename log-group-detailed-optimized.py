@@ -15,6 +15,10 @@ def get_log_groups(region):
     command = f"aws logs describe-log-groups --region {region} --query 'logGroups[*].[logGroupName,retentionInDays,storedBytes,lastIngestionTime]' --output json"
     return run_aws_command(command)
 
+def get_latest_log_stream(log_group_name, region):
+    command = f"aws logs describe-log-streams --log-group-name {log_group_name} --region {region} --order-by LastEventTime --descending --limit 1 --query 'logStreams[*].lastIngestionTime' --output json"
+    return run_aws_command(command)
+
 def get_log_group_streams(log_group_name, region):
     command = f"aws logs describe-log-streams --log-group-name {log_group_name} --region {region} --query 'logStreams[*].[lastIngestionTime]' --output json"
     return run_aws_command(command)
@@ -48,10 +52,10 @@ def main():
             stored_bytes = log_group[2] if log_group[2] is not None else 0
             total_size_gb = bytes_to_gb(stored_bytes)
 
-            # Get log streams to find the last ingestion time
-            log_streams = get_log_group_streams(log_group_name, region)
-            if log_streams:
-                last_ingestion_time = max((stream[0] for stream in log_streams if stream[0]), default=None)
+            # Get the latest log stream to find the last ingestion time
+            latest_log_stream = get_latest_log_stream(log_group_name, region)
+            if latest_log_stream:
+                last_ingestion_time = latest_log_stream[0] if latest_log_stream[0] is not None else None
                 last_ingestion_date = format_timestamp(last_ingestion_time)
             else:
                 last_ingestion_date = "N/A"
@@ -66,7 +70,7 @@ def main():
             table.append(row)
 
     # Write the table to a CSV file
-    csv_file = "log_groups_report.csv"
+    csv_file = "log_groups_report-sec-ple.csv"
     with open(csv_file, mode='w', newline='') as file:
         writer = csv.writer(file)
         writer.writerow(["Region", "Retention Period", "Log Group Name", "Stored Data Size (GB)", "Last Ingestion Time"])
